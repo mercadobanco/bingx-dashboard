@@ -1,6 +1,5 @@
 const express = require('express');
 const https = require('https');
-const path = require('path');
 const app = express();
 
 const PORT = process.env.PORT || 3000;
@@ -8,7 +7,14 @@ const BINGX_URL = 'https://bingx.com';
 
 // Endpoint para que el Frontend consulte los datos de BingX de forma segura
 app.get('/api/mercado', (req, res) => {
-    https.get(BINGX_URL, (bingxRes) => {
+    // Configuración de opciones agregando obligatoriamente las cabeceras de Agente para evitar el bloqueo del cortafuegos de BingX
+    const opciones = {
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+    };
+
+    https.get(BINGX_URL, opciones, (bingxRes) => {
         let data = '';
         bingxRes.on('data', (chunk) => { data += chunk; });
         bingxRes.on('end', () => {
@@ -90,7 +96,6 @@ app.get('/', (req, res) => {
 
         async function inicializarDashboard() {
             try {
-                // Consulta directo al endpoint interno del servidor en la nube
                 const respuesta = await fetch('/api/mercado');
                 const resultado = await respuesta.json();
 
@@ -137,15 +142,15 @@ app.get('/', (req, res) => {
             }
             tbody.innerHTML = '';
             datosFiltrados.forEach(row => {
-                tbody.innerHTML += \`
+                tbody.innerHTML += `
                     <tr>
                         <td><strong>\${row.symbol}</strong></td>
-                        <td>$\${row.price.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                        <td class="vol-text">$\${row.volume.toLocaleString(undefined, {maximumFractionDigits: 0})} USDT</td>
+                        <td>$\${row.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4})}</td>
+                        <td class="vol-text">\$\${row.volume.toLocaleString(undefined, {maximumFractionDigits: 0})} USDT</td>
                         <td class="\${row.change1h >= 0 ? 'positive' : 'negative'}">\${row.change1h >= 0 ? '+' : ''}\${row.change1h.toFixed(2)}%</td>
-                        <td class="\${row.change4h >= 0 ? 'positive' : 'negative'}">\throw\${row.change4h >= 0 ? '+' : ''}\${row.change4h.toFixed(2)}%</td>
+                        <td class="\${row.change4h >= 0 ? 'positive' : 'negative'}">\${row.change4h >= 0 ? '+' : ''}\${row.change4h.toFixed(2)}%</td>
                     </tr>
-                \`;
+                `;
             });
         }
         inicializarDashboard();
