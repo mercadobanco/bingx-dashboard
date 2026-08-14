@@ -7,7 +7,6 @@ const BINGX_URL = 'https://bingx.com';
 
 // Endpoint para que el Frontend consulte los datos de BingX de forma segura
 app.get('/api/mercado', (req, res) => {
-    // Configuración de opciones agregando obligatoriamente las cabeceras de Agente para evitar el bloqueo del cortafuegos de BingX
     const opciones = {
         headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
