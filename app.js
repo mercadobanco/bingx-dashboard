@@ -3,10 +3,10 @@ const https = require('https');
 const app = express();
 
 const PORT = process.env.PORT || 3000;
-// Endpoint global corporativo de Binance con cabeceras REST públicas e inmunes a bloqueos de Cloudflare
+// Usamos el endpoint global de Binance, cuyas cabeceras REST públicas están abiertas
 const BINANCE_URL = 'https://binance.com';
 
-// Endpoint seguro para consultar los datos del mercado
+// Endpoint seguro para consultar los datos del mercado en el backend
 app.get('/api/mercado', (req, res) => {
     https.get(BINANCE_URL, (binanceRes) => {
         let data = '';
@@ -15,13 +15,13 @@ app.get('/api/mercado', (req, res) => {
             try {
                 const datosRaw = JSON.parse(data);
                 
-                // Mapeamos los campos simulando la estructura limpia del Ticker oficial de BingX
+                // Mapeamos los campos replicando de manera idéntica la estructura de BingX
                 const respuestaFormateada = {
                     data: datosRaw.map(function(item) {
                         return {
                             symbol: item.symbol,
                             lastPrice: item.lastPrice,
-                            volume: item.quoteVolume, // Volumen total en USDT
+                            volume: item.quoteVolume, // Volumen total transaccionado en USDT
                             priceChangePercent: item.priceChangePercent
                         };
                     })
@@ -29,7 +29,7 @@ app.get('/api/mercado', (req, res) => {
                 
                 res.status(200).json(respuestaFormateada);
             } catch (e) {
-                res.status(500).json({ error: "Error al procesar datos del mercado cripto" });
+                res.status(500).json({ error: "Error al procesar datos del mercado" });
             }
         });
     }).on('error', (err) => {
@@ -37,7 +37,7 @@ app.get('/api/mercado', (req, res) => {
     });
 });
 
-// Interfaz Gráfica HTML integrada de forma directa en el servidor raíz
+// Interfaz Gráfica HTML integrada directamente en el servidor raíz
 app.get('/', (req, res) => {
     res.send(`
     <!DOCTYPE html>
@@ -104,8 +104,9 @@ app.get('/', (req, res) => {
 
         async function inicializarDashboard() {
             try {
-                // CORRECCIÓN PARA BRAVE: Usamos un endpoint interno relativo plano para evitar bloqueos HTTPS
-                const respuesta = await fetch('/api/mercado');
+                // BLINDAJE PARA BRAVE: Forzamos la lectura dinámica del host de origen en HTTPS
+                const base_uri = window.location.origin;
+                const respuesta = await fetch(base_uri + '/api/mercado');
                 const resultado = await respuesta.json();
 
                 if (!resultado || !resultado.data) throw new Error("Estructura inválida.");
