@@ -1,0 +1,12 @@
+{
+  "name": "bingx-dashboard",
+  "version": "1.0.0",
+  "description": "Dashboard de Variacion Cripto BingX",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
