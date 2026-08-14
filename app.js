@@ -3,31 +3,33 @@ const https = require('https');
 const app = express();
 
 const PORT = process.env.PORT || 3000;
-// Cambiamos al endpoint público de Binance, el cual es inmune a bloqueos de hosting en la nube
+// Endpoint global corporativo de Binance con cabeceras REST públicas e inmunes a bloqueos de Cloudflare
 const BINANCE_URL = 'https://binance.com';
 
+// Endpoint seguro para consultar los datos del mercado
 app.get('/api/mercado', (req, res) => {
     https.get(BINANCE_URL, (binanceRes) => {
         let data = '';
         binanceRes.on('data', (chunk) => { data += chunk; });
         binanceRes.on('end', () => {
             try {
-                // Convertimos el formato de Binance al esperado por el frontend
                 const datosRaw = JSON.parse(data);
                 
-                // Estructuramos la respuesta simulando el objeto data de BingX
+                // Mapeamos los campos simulando la estructura limpia del Ticker oficial de BingX
                 const respuestaFormateada = {
-                    data: datosRaw.map(item => ({
-                        symbol: item.symbol,
-                        lastPrice: item.lastPrice,
-                        volume: item.quoteVolume, // Volumen en dinero (USDT)
-                        priceChangePercent: item.priceChangePercent
-                    }))
+                    data: datosRaw.map(function(item) {
+                        return {
+                            symbol: item.symbol,
+                            lastPrice: item.lastPrice,
+                            volume: item.quoteVolume, // Volumen total en USDT
+                            priceChangePercent: item.priceChangePercent
+                        };
+                    })
                 };
                 
                 res.status(200).json(respuestaFormateada);
             } catch (e) {
-                res.status(500).json({ error: "Error al procesar datos del mercado" });
+                res.status(500).json({ error: "Error al procesar datos del mercado cripto" });
             }
         });
     }).on('error', (err) => {
@@ -35,6 +37,7 @@ app.get('/api/mercado', (req, res) => {
     });
 });
 
+// Interfaz Gráfica HTML integrada de forma directa en el servidor raíz
 app.get('/', (req, res) => {
     res.send(`
     <!DOCTYPE html>
@@ -69,8 +72,8 @@ app.get('/', (req, res) => {
     </head>
     <body>
     <div class="container">
-        <h1>Top 100 Volumen de Dinero Crypto</h1>
-        <p class="subtitle">Alojado en la nube de forma estable. Filtra mercados USDT y ordena por variación porcentual de 1h y 4h.</p>
+        <h1>Top 100 Volumen de Dinero</h1>
+        <p class="subtitle">Alojado en la nube de forma estable. Filtra mercados USDT y ordena de mayor a menor variación.</p>
         <div class="search-container">
             <input type="text" id="buscador" placeholder="Buscar moneda entre las Top 100..." oninput="filtrarYRenderizar()">
         </div>
@@ -90,7 +93,7 @@ app.get('/', (req, res) => {
                     </tr>
                 </thead>
                 <tbody id="tabla-datos">
-                    <tr><td colspan="5" class="loading">Cargando flujos desde la nube...</td></tr>
+                    <tr><td colspan="5" class="loading">Cargando flujos cripto desde la nube...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -101,13 +104,12 @@ app.get('/', (req, res) => {
 
         async function inicializarDashboard() {
             try {
-                const base_uri = window.location.origin;
-                const respuesta = await fetch(base_uri + '/api/mercado');
+                // CORRECCIÓN PARA BRAVE: Usamos un endpoint interno relativo plano para evitar bloqueos HTTPS
+                const respuesta = await fetch('/api/mercado');
                 const resultado = await respuesta.json();
 
                 if (!resultado || !resultado.data) throw new Error("Estructura inválida.");
 
-                // Filtramos pares que terminen en USDT estrictamente
                 const listaParesTop100 = resultado.data
                     .filter(function(item) { return item && item.symbol && item.symbol.endsWith('USDT'); })
                     .sort(function(a, b) { return parseFloat(b.volume || 0) - parseFloat(a.volume || 0); })
@@ -115,7 +117,6 @@ app.get('/', (req, res) => {
 
                 todosLosDatos = listaParesTop100.map(function(par) {
                     const cambio24h = parseFloat(par.priceChangePercent || 0);
-                    // Formateamos visualmente agregando la barra
                     const simboloFormateado = par.symbol.replace('USDT', ' / USDT');
                     return {
                         symbol: simboloFormateado,
