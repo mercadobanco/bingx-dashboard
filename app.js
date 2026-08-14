@@ -5,11 +5,12 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const BINGX_URL = 'https://bingx.com';
 
-// Endpoint para que el Frontend consulte los datos de BingX de forma segura
+// Endpoint seguro para consultar los datos oficiales del mercado spot de BingX
 app.get('/api/mercado', (req, res) => {
     const opciones = {
         headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json'
         }
     };
 
@@ -28,7 +29,7 @@ app.get('/api/mercado', (req, res) => {
     });
 });
 
-// Interfaz Gráfica HTML integrada directamente en el servidor
+// Interfaz Gráfica HTML integrada de forma directa y limpia
 app.get('/', (req, res) => {
     res.send(`
     <!DOCTYPE html>
@@ -64,7 +65,7 @@ app.get('/', (req, res) => {
     <body>
     <div class="container">
         <h1>Top 100 Volumen de Dinero BingX</h1>
-        <p class="subtitle">Alojado en la nube de forma estable. Ordenado de mayor a menor variación porcentual.</p>
+        <p class="subtitle">Alojado en la nube de forma stable. Ordenado de mayor a menor variación porcentual.</p>
         <div class="search-container">
             <input type="text" id="buscador" placeholder="Buscar moneda entre las Top 100..." oninput="filtrarYRenderizar()">
         </div>
@@ -95,17 +96,19 @@ app.get('/', (req, res) => {
 
         async function inicializarDashboard() {
             try {
-                const respuesta = await fetch('/api/mercado');
+                // Forzamos origen de ruta completa relativa de la ventana para blindar contra bloqueos de Brave HTTPS
+                const base_uri = window.location.origin;
+                const respuesta = await fetch(base_uri + '/api/mercado');
                 const resultado = await respuesta.json();
 
                 if (!resultado || !resultado.data) throw new Error("Estructura inválida.");
 
                 const listaParesTop100 = resultado.data
-                    .filter(item => item.symbol && item.symbol.endsWith('-USDT'))
-                    .sort((a, b) => parseFloat(b.volume || 0) - parseFloat(a.volume || 0))
+                    .filter(function(item) { return item && item.symbol && item.symbol.endsWith('-USDT'); })
+                    .sort(function(a, b) { return parseFloat(b.volume || 0) - parseFloat(a.volume || 0); })
                     .slice(0, 100);
 
-                todosLosDatos = listaParesTop100.map(par => {
+                todosLosDatos = listaParesTop100.map(function(par) {
                     const cambio24h = parseFloat(par.priceChangePercent || 0);
                     return {
                         symbol: par.symbol.replace('-USDT', ' / USDT'),
@@ -118,7 +121,7 @@ app.get('/', (req, res) => {
                 });
                 filtrarYRenderizar();
             } catch (error) {
-                document.getElementById('tabla-datos').innerHTML = '<tr><td colspan="5" class="loading" style="color:#ef4444;">Error de conexión con la nube. Reintentando...</td></tr>';
+                document.getElementById('tabla-datos').innerHTML = '<tr><td colspan="5" class="loading" style="color:#ef4444;">Error de sincronización de flujos de la nube. Reintentando...</td></tr>';
             }
         }
 
@@ -131,25 +134,32 @@ app.get('/', (req, res) => {
 
         function filtrarYRenderizar() {
             const textoBusqueda = document.getElementById('buscador').value.toUpperCase();
-            let datosFiltrados = todosLosDatos.filter(item => item.rawSymbol.includes(textoBusqueda));
-            datosFiltrados.sort((a, b) => (criterioOrden === '1h' ? b.change1h - a.change1h : b.change4h - a.change4h));
+            let datosFiltrados = todosLosDatos.filter(function(item) { return item.rawSymbol.includes(textoBusqueda); });
+            
+            datosFiltrados.sort(function(a, b) {
+                return criterioOrden === '1h' ? b.change1h - a.change1h : b.change4h - a.change4h;
+            });
 
             const tbody = document.getElementById('tabla-datos');
             if (datosFiltrados.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" class="loading">Sin datos disponibles...</td></tr>';
                 return;
             }
+            
             tbody.innerHTML = '';
-            datosFiltrados.forEach(row => {
-                tbody.innerHTML += `
-                    <tr>
-                        <td><strong>\${row.symbol}</strong></td>
-                        <td>$\${row.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4})}</td>
-                        <td class="vol-text">\$\${row.volume.toLocaleString(undefined, {maximumFractionDigits: 0})} USDT</td>
-                        <td class="\${row.change1h >= 0 ? 'positive' : 'negative'}">\${row.change1h >= 0 ? '+' : ''}\${row.change1h.toFixed(2)}%</td>
-                        <td class="\${row.change4h >= 0 ? 'positive' : 'negative'}">\${row.change4h >= 0 ? '+' : ''}\${row.change4h.toFixed(2)}%</td>
-                    </tr>
-                `;
+            datosFiltrados.forEach(function(row) {
+                const clase1h = row.change1h >= 0 ? 'positive' : 'negative';
+                const clase4h = row.change4h >= 0 ? 'positive' : 'negative';
+                const signo1h = row.change1h >= 0 ? '+' : '';
+                const signo4h = row.change4h >= 0 ? '+' : '';
+
+                tbody.innerHTML += '<tr>' +
+                    '<td><strong>' + row.symbol + '</strong></td>' +
+                    '<td>$' + row.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4}) + '</td>' +
+                    '<td class="vol-text">$' + row.volume.toLocaleString(undefined, {maximumFractionDigits: 0}) + ' USDT</td>' +
+                    '<td class="' + clase1h + '">' + signo1h + row.change1h.toFixed(2) + '%</td>' +
+                    '<td class="' + clase4h + '">' + signo4h + row.change4h.toFixed(2) + '%</td>' +
+                '</tr>';
             });
         }
         inicializarDashboard();
