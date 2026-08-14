@@ -3,25 +3,31 @@ const https = require('https');
 const app = express();
 
 const PORT = process.env.PORT || 3000;
-const BINGX_URL = 'https://bingx.com';
+// Cambiamos al endpoint público de Binance, el cual es inmune a bloqueos de hosting en la nube
+const BINANCE_URL = 'https://binance.com';
 
-// Endpoint seguro para consultar los datos oficiales del mercado spot de BingX
 app.get('/api/mercado', (req, res) => {
-    const opciones = {
-        headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'application/json'
-        }
-    };
-
-    https.get(BINGX_URL, opciones, (bingxRes) => {
+    https.get(BINANCE_URL, (binanceRes) => {
         let data = '';
-        bingxRes.on('data', (chunk) => { data += chunk; });
-        bingxRes.on('end', () => {
+        binanceRes.on('data', (chunk) => { data += chunk; });
+        binanceRes.on('end', () => {
             try {
-                res.status(200).json(JSON.parse(data));
+                // Convertimos el formato de Binance al esperado por el frontend
+                const datosRaw = JSON.parse(data);
+                
+                // Estructuramos la respuesta simulando el objeto data de BingX
+                const respuestaFormateada = {
+                    data: datosRaw.map(item => ({
+                        symbol: item.symbol,
+                        lastPrice: item.lastPrice,
+                        volume: item.quoteVolume, // Volumen en dinero (USDT)
+                        priceChangePercent: item.priceChangePercent
+                    }))
+                };
+                
+                res.status(200).json(respuestaFormateada);
             } catch (e) {
-                res.status(500).json({ error: "Error al parsear datos de BingX" });
+                res.status(500).json({ error: "Error al procesar datos del mercado" });
             }
         });
     }).on('error', (err) => {
@@ -29,7 +35,6 @@ app.get('/api/mercado', (req, res) => {
     });
 });
 
-// Interfaz Gráfica HTML integrada de forma directa y limpia
 app.get('/', (req, res) => {
     res.send(`
     <!DOCTYPE html>
@@ -37,7 +42,7 @@ app.get('/', (req, res) => {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Top 100 Volumen BingX Spot</title>
+        <title>Top 100 Volumen Crypto Dashboard</title>
         <style>
             body { font-family: 'Segoe UI', Arial, sans-serif; background: #0b0f19; color: #e2e8f0; padding: 25px; margin: 0; }
             .container { max-width: 1200px; margin: 0 auto; }
@@ -64,8 +69,8 @@ app.get('/', (req, res) => {
     </head>
     <body>
     <div class="container">
-        <h1>Top 100 Volumen de Dinero BingX</h1>
-        <p class="subtitle">Alojado en la nube de forma stable. Ordenado de mayor a menor variación porcentual.</p>
+        <h1>Top 100 Volumen de Dinero Crypto</h1>
+        <p class="subtitle">Alojado en la nube de forma estable. Filtra mercados USDT y ordena por variación porcentual de 1h y 4h.</p>
         <div class="search-container">
             <input type="text" id="buscador" placeholder="Buscar moneda entre las Top 100..." oninput="filtrarYRenderizar()">
         </div>
@@ -77,7 +82,7 @@ app.get('/', (req, res) => {
             <table>
                 <thead>
                     <tr>
-                        <th>Par Comercial BingX</th>
+                        <th>Par Comercial</th>
                         <th>Precio Actual</th>
                         <th>Volumen 24h (Dinero)</th>
                         <th>Variación 1 Hora</th>
@@ -96,22 +101,24 @@ app.get('/', (req, res) => {
 
         async function inicializarDashboard() {
             try {
-                // Forzamos origen de ruta completa relativa de la ventana para blindar contra bloqueos de Brave HTTPS
                 const base_uri = window.location.origin;
                 const respuesta = await fetch(base_uri + '/api/mercado');
                 const resultado = await respuesta.json();
 
                 if (!resultado || !resultado.data) throw new Error("Estructura inválida.");
 
+                // Filtramos pares que terminen en USDT estrictamente
                 const listaParesTop100 = resultado.data
-                    .filter(function(item) { return item && item.symbol && item.symbol.endsWith('-USDT'); })
+                    .filter(function(item) { return item && item.symbol && item.symbol.endsWith('USDT'); })
                     .sort(function(a, b) { return parseFloat(b.volume || 0) - parseFloat(a.volume || 0); })
                     .slice(0, 100);
 
                 todosLosDatos = listaParesTop100.map(function(par) {
                     const cambio24h = parseFloat(par.priceChangePercent || 0);
+                    // Formateamos visualmente agregando la barra
+                    const simboloFormateado = par.symbol.replace('USDT', ' / USDT');
                     return {
-                        symbol: par.symbol.replace('-USDT', ' / USDT'),
+                        symbol: simboloFormateado,
                         rawSymbol: par.symbol,
                         price: parseFloat(par.lastPrice || 0),
                         volume: parseFloat(par.volume || 0),
@@ -121,7 +128,7 @@ app.get('/', (req, res) => {
                 });
                 filtrarYRenderizar();
             } catch (error) {
-                document.getElementById('tabla-datos').innerHTML = '<tr><td colspan="5" class="loading" style="color:#ef4444;">Error de sincronización de flujos de la nube. Reintentando...</td></tr>';
+                document.getElementById('tabla-datos').innerHTML = '<tr><td colspan="5" class="loading" style="color:#ef4444;">Error de sincronización con los servidores de datos. Reintentando...</td></tr>';
             }
         }
 
